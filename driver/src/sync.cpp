@@ -18,6 +18,13 @@ int sync_debug = 2;
 int sync_cnt   = 200;
 #define SYNC_DEBUG(n)        (sync_debug > (n) && sync_cnt > 0 && --sync_cnt)
 #define SYNC_DEBUG_ALWAYS(n) (sync_debug > (n))
+#define SYNC_ERROR(level, msg)     \
+        if (SYNC_DEBUG(level)) {   \
+            printf msg;            \
+            fflush(stdout);        \
+        }                          \
+        in_sync = 0;               \
+        continue;                  \
 
 int Synchronizer::poll(void)
 {
@@ -25,14 +32,16 @@ int Synchronizer::poll(void)
     int trigevent;
     int eventvalid;
     DataObject *dobj = NULL;
-    int delayfid, tsfid;
+    int delayfid, tsfid = -1, lastdatafid = -1;
     int in_sync;
     int do_print = 0;
     unsigned long long idx = -1;
     epicsTimeStamp evt_time;
     int status = 0;
+    int attributes;
 
     sobj->Init();
+    attributes = sobj->Attributes();
 
     trigevent = sobj->m_gen ? *sobj->m_event : -1;
     gen       = sobj->m_gen ? *sobj->m_gen : 0;
@@ -133,7 +142,7 @@ int Synchronizer::poll(void)
              * Our trigger was close to delayfid.  However, sometimes we don't have the
              * timestamp yet.  Wait until we receive it!
              */
-            while (FID_DIFF(delayfid, tsfid) > 3) {
+            while (FID_DIFF(delayfid, tsfid) > 2) {
                 unsigned long long idx2;
                 do
                     status = evrTimeGetFifo(&evt_time, trigevent, &idx2, MAX_TS_QUEUE);
@@ -163,31 +172,70 @@ int Synchronizer::poll(void)
                 fflush(stdout);
             }
             in_sync = 1;
-            do_print = 2; /* Double check the next time through the loop! */
+            do_print = 2; /* Double check the next few times through the loop! */
+            lastdatafid = tsfid;
             continue;
         }
 
         assert(in_sync == 1);
 
         if (sobj->m_gen) {
-            status = evrTimeGetFifo(&evt_time, trigevent, &idx, 1);
+            int incr;
+
+            if (attributes & SyncObject::HasCount) {
+                /* If we have a counter, use it to figure out how many timestamps to skip. */
+                incr = sobj->CountIncr(dobj);
+                if (incr < 0) {
+                    SYNC_ERROR(0, ("Lost sync in CountIncr!\n"));
+                }
+            } else
+                incr = 1;
+            status = evrTimeGetFifo(&evt_time, trigevent, &idx, incr);
             tsfid = evt_time.nsec & 0x1ffff;
 
-            if (status || FID_DIFF(delayfid, tsfid) > 2) {
-                if (SYNC_DEBUG(0)) {
-                    if (status) 
-                        printf("%s has an invalid timestamp, resynching!\n", sobj->Name());
-                    else
-                        printf("Lost sync! (timestamp fid 0x%05x, delayed fid 0x%05x)\n",
-                               tsfid, delayfid);
-                    fflush(stdout);
+            if (status) {
+                SYNC_ERROR(0, ("%s has an invalid timestamp, resynching!\n", sobj->Name()));
+            }
+            if (tsfid == 0x1ffff) {
+                SYNC_ERROR(0, ("Invalid fiducial! (delayed fid 0x%05x)\n", delayfid));
+            }
+
+            if (attributes & SyncObject::HasTime) {
+                /* If we have a timestamp, use it to calculate the expected fiducial, and then
+                   search for a timestamp in the queue close to this one. */
+                int fid = sobj->Fiducial(dobj, lastdatafid);
+                if (fid < 0) {
+                    SYNC_ERROR(0, ("Lost sync in Fiducial!\n"));
                 }
-                in_sync = 0;
-                continue;
+                while (!status && FID_DIFF(fid, tsfid) >= 2) {
+                    status = evrTimeGetFifo(&evt_time, trigevent, &idx, 1);
+                    tsfid = evt_time.nsec & 0x1ffff;
+                }
+                if (status) {
+                    SYNC_ERROR(0, ("%s has an invalid timestamp, resynching!\n", sobj->Name()));
+                }
+                if (tsfid == 0x1ffff) {
+                    SYNC_ERROR(0, ("Invalid fiducial! (expected fid 0x%05x)\n", fid));
+                }
+                if (abs(FID_DIFF(fid, tsfid)) >= 2) {
+                    SYNC_ERROR(0, ("Lost sync! (timestamp fid 0x%05x, expected fid 0x%05x)\n", tsfid, fid));
+                }
+            }
+
+            if (attributes & SyncObject::CanSkip) {
+                /*
+                 * If we can skip data, we have to give up if we are delayed for any reason!
+                 */
+                if (FID_DIFF(delayfid, tsfid) >= 2) {
+                    SYNC_ERROR(0, ("Lost sync! (timestamp fid 0x%05x, delayed fid 0x%05x)\n", tsfid, delayfid));
+                }
             }
 
             if (do_print) {
-                if (abs((int)tsfid - (int)delayfid) <= 2) {
+                /*
+                 * We think we're synched, but we're still in the checking phase.
+                 */
+                if (abs(FID_DIFF(tsfid, delayfid)) <= 1) {
                     do_print--;
                     if (SYNC_DEBUG(0)) {
                         if (!do_print)
@@ -200,15 +248,12 @@ int Synchronizer::poll(void)
                                    *sobj->m_delay, delayfid);
                         fflush(stdout);
                     }
+                    lastdatafid = tsfid;
+                    continue;
                 } else {
-                    if (SYNC_DEBUG(0)) {
-                        printf("%s has lost synchronization! (timestamp fid = 0x%x, delay fid = 0x%x, diff = %d)\n",
-                               sobj->Name(), evt_time.nsec & 0x1ffff, delayfid, abs((int)tsfid - (int)delayfid));
-                        fflush(stdout);
-                    }                    
-                    in_sync = 0;
+                    SYNC_ERROR(0, ("%s has lost synchronization! (timestamp fid = 0x%x, delay fid = 0x%x, diff = %d)\n",
+                                   sobj->Name(), evt_time.nsec & 0x1ffff, delayfid, abs((int)tsfid - (int)delayfid)));
                 }
-                continue;
             } else {
                 if (SYNC_DEBUG_ALWAYS(2)) {
                     printf("%s ts fid=%x, lastfid=%x\n", sobj->Name(), evt_time.nsec & 0x1ffff, lastfid);
@@ -220,6 +265,7 @@ int Synchronizer::poll(void)
         }
 
         sobj->QueueData(dobj, evt_time);
+        lastdatafid = tsfid;
     }
     return 0;
 }
