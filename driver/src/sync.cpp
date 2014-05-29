@@ -235,7 +235,7 @@ int Synchronizer::poll(void)
                 /*
                  * We think we're synched, but we're still in the checking phase.
                  */
-                if (abs(FID_DIFF(tsfid, delayfid)) <= 1) {
+                if (abs(FID_DIFF(tsfid, delayfid)) <= 2) {
                     do_print--;
                     if (SYNC_DEBUG(0)) {
                         if (!do_print)
@@ -243,7 +243,7 @@ int Synchronizer::poll(void)
                                    sobj->Name(), idx, evt_time.nsec & 0x1ffff, lastfid,
                                    *sobj->m_delay, delayfid);
                         else
-                            printf("%s has image at fiducial 0x%x (0x%x - %lg = 0x%x).\n",
+                            printf("%s has data at fiducial 0x%x (0x%x - %lg = 0x%x).\n",
                                    sobj->Name(), evt_time.nsec & 0x1ffff, lastfid,
                                    *sobj->m_delay, delayfid);
                         fflush(stdout);
