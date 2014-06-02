@@ -26,5 +26,7 @@ EVENT_MODULE_VERSION=R4.0.0-2.0.1
 #
 # If your build fails, look for these paths in your build output
 # ============================================================
-EVENT=$(EPICS_MODULES)/event/$(EVENT_MODULE_VERSION)
+#EVENT=$(EPICS_MODULES)/event/$(EVENT_MODULE_VERSION)
 
+MY_MODULES=/reg/neh/home1/mcbrowne/trunk12/modules
+EVENT=$(MY_MODULES)/event/current

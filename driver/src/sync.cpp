@@ -39,9 +39,11 @@ int Synchronizer::poll(void)
     epicsTimeStamp evt_time;
     int status = 0;
     int attributes;
+    double lastdelay = 0.0;
 
     sobj->Init();
     attributes = sobj->Attributes();
+    lastdelay = *sobj->m_delay;
 
     trigevent = sobj->m_gen ? *sobj->m_event : -1;
     gen       = sobj->m_gen ? *sobj->m_gen : 0;
@@ -52,14 +54,14 @@ int Synchronizer::poll(void)
         if (dobj)
             delete dobj;
         dobj = sobj->Acquire();
-        delayfid = lastfid - (int)(*sobj->m_delay + 0.5);
+        delayfid = lastfid - (int)(lastdelay + 0.5);
         if (sobj->CheckError(dobj)) {
             gen = -1;
             continue;
         }
 
-        if (sobj->m_gen && gen != *sobj->m_gen) {
-            /* The trigger event changed, so force a resync! */
+        if (sobj->m_gen && (gen != *sobj->m_gen || lastdelay != *sobj->m_delay)) {
+            /* The trigger event changed or the timing did, so force a resync! */
             trigevent = *sobj->m_event;
             gen = *sobj->m_gen;
             in_sync = 0;
@@ -78,6 +80,7 @@ int Synchronizer::poll(void)
                     fflush(stdout);
                 }
             }
+            lastdelay = *sobj->m_delay;
             continue;
         }
 
@@ -142,6 +145,11 @@ int Synchronizer::poll(void)
              * Our trigger was close to delayfid.  However, sometimes we don't have the
              * timestamp yet.  Wait until we receive it!
              */
+            if (FID_DIFF(delayfid, tsfid) > 2) {
+                SYNC_ERROR(0, ("%s is still way off! delayfid = 0x%05x, tsfid = 0x%05x, restarting.\n",
+                               sobj->Name(), delayfid, tsfid));
+            }
+#if 0
             while (FID_DIFF(delayfid, tsfid) > 2) {
                 unsigned long long idx2;
                 do
@@ -152,6 +160,8 @@ int Synchronizer::poll(void)
                 if (gen != *sobj->m_gen || tsfid == 0x1ffff)
                     break;
             }
+#endif
+
             if (gen != *sobj->m_gen || tsfid == 0x1ffff) {
                 /* This is just bad.  When in doubt, start over. */
                 if (SYNC_DEBUG(0)) {
@@ -172,7 +182,7 @@ int Synchronizer::poll(void)
                 fflush(stdout);
             }
             in_sync = 1;
-            do_print = 2; /* Double check the next few times through the loop! */
+            do_print = 3; /* Double check the next few times through the loop! */
             lastdatafid = tsfid;
             continue;
         }
@@ -207,7 +217,7 @@ int Synchronizer::poll(void)
                 if (fid < 0) {
                     SYNC_ERROR(0, ("Lost sync in Fiducial!\n"));
                 }
-                while (!status && FID_DIFF(fid, tsfid) >= 2) {
+                while (!status && FID_DIFF(fid, tsfid) >= 3) {
                     status = evrTimeGetFifo(&evt_time, trigevent, &idx, 1);
                     tsfid = evt_time.nsec & 0x1ffff;
                 }
@@ -235,7 +245,7 @@ int Synchronizer::poll(void)
                 /*
                  * We think we're synched, but we're still in the checking phase.
                  */
-                if (abs(FID_DIFF(tsfid, delayfid)) <= 2) {
+                if (abs(FID_DIFF(tsfid, delayfid)) < 3) {
                     do_print--;
                     if (SYNC_DEBUG(0)) {
                         if (!do_print)
@@ -273,12 +283,17 @@ int Synchronizer::poll(void)
 
 // Debug stuff. 
 static const iocshArg	   syncdebugArg0	= { "level",	iocshArgInt };
-static const iocshArg	  *syncdebugArgs[1]	= { &syncdebugArg0 };
-static const iocshFuncDef  syncdebugFuncDef	= { "syncdebug", 1, syncdebugArgs };
+static const iocshArg	   syncdebugArg1	= { "count",	iocshArgInt };
+static const iocshArg	  *syncdebugArgs[2]	= { &syncdebugArg0, &syncdebugArg1 };
+static const iocshFuncDef  syncdebugFuncDef	= { "syncdebug", 2, syncdebugArgs };
 static int  syncdebugCallFunc(const iocshArgBuf * args)
 {
     sync_debug = args[0].ival;
-    sync_cnt   = 1000;
+    if (!args[1].ival)
+        sync_cnt = 1000;
+    else
+        sync_cnt = args[1].ival;
+    printf("Setting syncdebug to %d (count = %d)\n", sync_debug, sync_cnt);
     return 0;
 }
 
