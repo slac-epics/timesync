@@ -1,5 +1,6 @@
-#ifndef SYNC_H
-#define SYNC_H
+#ifndef TIMESYNC_H
+#define TIMESYNC_H
+#include<string>
 
 class DataObject
 {
@@ -32,7 +33,7 @@ class Synchronizer
 {
  public:
     // Constructor
-    Synchronizer(SyncObject *_sobj) { sobj = _sobj; };
+    Synchronizer(SyncObject *_sobj, std::string _syncpv) { sobj = _sobj; syncpv = _syncpv; };
 
     // Routine to do synchronization (only return on error!)
     int poll(void);
@@ -40,7 +41,8 @@ class Synchronizer
  private:
     // The object to be synchronized.
     SyncObject *sobj;
+    std::string syncpv;
 };
 
 
-#endif // SYNC_H
+#endif // TIMESYNC_H

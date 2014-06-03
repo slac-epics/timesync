@@ -9,7 +9,7 @@
 #include <errlog.h>
 #include <epicsVersion.h>
 #include <unistd.h>
-#include "sync.h"
+#include "timesync.h"
 #include "evrTime.h"
 
 using namespace		std;
@@ -18,13 +18,19 @@ int sync_debug = 2;
 int sync_cnt   = 200;
 #define SYNC_DEBUG(n)        (sync_debug > (n) && sync_cnt > 0 && --sync_cnt)
 #define SYNC_DEBUG_ALWAYS(n) (sync_debug > (n))
+#define SET_SYNC(v)                                   \
+    do {                                              \
+        in_sync = v;                                  \
+        if (have_syncpv)                              \
+            dbPutField(&addr, DBR_LONG, &in_sync, 1); \
+    } while (0)
 #define SYNC_ERROR(level, msg)     \
         if (SYNC_DEBUG(level)) {   \
             printf msg;            \
             fflush(stdout);        \
         }                          \
-        in_sync = 0;               \
-        continue;                  \
+        SET_SYNC(0);               \
+        continue
 
 int Synchronizer::poll(void)
 {
@@ -40,14 +46,20 @@ int Synchronizer::poll(void)
     int status = 0;
     int attributes;
     double lastdelay = 0.0;
+    DBADDR addr;
+    int have_syncpv = 0;
+    const char *syncpvname = syncpv.c_str();
 
     sobj->Init();
     attributes = sobj->Attributes();
     lastdelay = *sobj->m_delay;
 
+    if (syncpvname && syncpvname[0] && !dbNameToAddr(syncpvname, &addr))
+        have_syncpv = 1;
+
     trigevent = sobj->m_gen ? *sobj->m_event : -1;
     gen       = sobj->m_gen ? *sobj->m_gen : 0;
-    in_sync   = sobj->m_gen ? 0 : 1;
+    SET_SYNC(sobj->m_gen ? 0 : 1);
     eventvalid = trigevent > 0 && trigevent < 256;
 
     while(TRUE) {
@@ -64,7 +76,7 @@ int Synchronizer::poll(void)
             /* The trigger event changed or the timing did, so force a resync! */
             trigevent = *sobj->m_event;
             gen = *sobj->m_gen;
-            in_sync = 0;
+            SET_SYNC(0);
 
             if (eventvalid) {
                 eventvalid = trigevent > 0 && trigevent < 256;
@@ -181,7 +193,7 @@ int Synchronizer::poll(void)
                        sobj->Name(), idx, tsfid, delayfid);
                 fflush(stdout);
             }
-            in_sync = 1;
+            SET_SYNC(1);
             do_print = 3; /* Double check the next few times through the loop! */
             lastdatafid = tsfid;
             continue;
@@ -297,12 +309,12 @@ static int  syncdebugCallFunc(const iocshArgBuf * args)
     return 0;
 }
 
-void syncRegister(void)
+void timesyncRegister(void)
 {
     iocshRegister(&syncdebugFuncDef, reinterpret_cast<iocshCallFunc>(syncdebugCallFunc));
 }
 
 extern "C"
 {
-    epicsExportRegistrar(syncRegister);
+    epicsExportRegistrar(timesyncRegister);
 }

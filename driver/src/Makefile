@@ -1,12 +1,12 @@
 TOP := ../..
 include $(TOP)/configure/CONFIG
 
-DBD += sync.dbd
+DBD += timesync.dbd
 
-INC += sync.h
+INC += timesync.h
 
-LIBRARY := sync
+LIBRARY := timesync
 
-LIBSRCS += sync.cpp
+LIBSRCS += timesync.cpp
 
 include $(TOP)/configure/RULES
