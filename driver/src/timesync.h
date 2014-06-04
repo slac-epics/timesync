@@ -22,6 +22,7 @@ class SyncObject
     virtual int Fiducial(DataObject *dobj, int lastdatafid) { return -1; }
     virtual int Attributes(void)               { return CanSkip; }
     virtual void QueueData(DataObject *dobj, epicsTimeStamp &evt_time) { delete dobj; };
+    virtual void DebugPrint(DataObject *dobj) {};
     virtual ~SyncObject()                    {};
  public:
     epicsUInt32    *m_event;                // Event of interest.

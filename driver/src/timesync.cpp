@@ -27,6 +27,7 @@ int sync_cnt   = 200;
 #define SYNC_ERROR(level, msg)     \
         if (SYNC_DEBUG(level)) {   \
             printf msg;            \
+            sobj->DebugPrint(dobj);\
             fflush(stdout);        \
         }                          \
         SET_SYNC(0);               \
@@ -49,6 +50,7 @@ int Synchronizer::poll(void)
     DBADDR addr;
     int have_syncpv = 0;
     const char *syncpvname = syncpv.c_str();
+    int lastdelayfid, lasttsfid;
 
     sobj->Init();
     attributes = sobj->Attributes();
@@ -84,11 +86,13 @@ int Synchronizer::poll(void)
                     printf("%s is setting event trigger to %d.\n", sobj->Name(), trigevent);
                 else
                     printf("%s has invalid event trigger %d!\n", sobj->Name(), trigevent);
+                sobj->DebugPrint(dobj);
                 fflush(stdout);
             } else {
                 eventvalid = trigevent > 0 && trigevent < 256;
                 if (eventvalid) {
                     printf("%s is setting event trigger to %d.\n", sobj->Name(), trigevent);
+                    sobj->DebugPrint(dobj);
                     fflush(stdout);
                 }
             }
@@ -191,6 +195,7 @@ int Synchronizer::poll(void)
             if (SYNC_DEBUG(0)) {
                 printf("%s resync established with index %lld at timestamp fiducial 0x%x at delayed fiducial 0x%x.\n",
                        sobj->Name(), idx, tsfid, delayfid);
+                sobj->DebugPrint(dobj);
                 fflush(stdout);
             }
             SET_SYNC(1);
@@ -239,6 +244,7 @@ int Synchronizer::poll(void)
                 if (tsfid == 0x1ffff) {
                     SYNC_ERROR(0, ("Invalid fiducial! (expected fid 0x%05x)\n", fid));
                 }
+                /* We're keeping it tight here for the initial sync! */
                 if (abs(FID_DIFF(fid, tsfid)) >= 2) {
                     SYNC_ERROR(0, ("Lost sync! (timestamp fid 0x%05x, expected fid 0x%05x)\n", tsfid, fid));
                 }
@@ -248,10 +254,12 @@ int Synchronizer::poll(void)
                 /*
                  * If we can skip data, we have to give up if we are delayed for any reason!
                  */
-                if (FID_DIFF(delayfid, tsfid) >= 2) {
-                    SYNC_ERROR(0, ("Lost sync! (timestamp fid 0x%05x, delayed fid 0x%05x)\n", tsfid, delayfid));
+                if (FID_DIFF(delayfid, tsfid) >= 3) {
+                    SYNC_ERROR(0, ("Lost sync! (timestamp fid 0x%05x, delayed fid 0x%05x, last tsfid = 0x%05x, last delayfid = 0x%05x)\n", tsfid, delayfid, lasttsfid, lastdelayfid));
                 }
             }
+            lasttsfid = tsfid;
+            lastdelayfid = delayfid;
 
             if (do_print) {
                 /*
@@ -268,6 +276,7 @@ int Synchronizer::poll(void)
                             printf("%s has data at fiducial 0x%x (0x%x - %lg = 0x%x).\n",
                                    sobj->Name(), evt_time.nsec & 0x1ffff, lastfid,
                                    *sobj->m_delay, delayfid);
+                        sobj->DebugPrint(dobj);
                         fflush(stdout);
                     }
                     lastdatafid = tsfid;
