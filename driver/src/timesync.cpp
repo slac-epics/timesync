@@ -50,7 +50,7 @@ int Synchronizer::poll(void)
     DBADDR addr;
     int have_syncpv = 0;
     const char *syncpvname = syncpv.c_str();
-    int lastdelayfid, lasttsfid;
+    int lastdelayfid = -1, lasttsfid = -1;
 
     sobj->Init();
     attributes = sobj->Attributes();
