@@ -27,13 +27,13 @@ int sync_cnt   = 200;
 #define SYNC_ERROR(level, msg)     \
         if (SYNC_DEBUG(level)) {   \
             printf msg;            \
-            sobj->DebugPrint(dobj);\
+            DebugPrint(dobj);\
             fflush(stdout);        \
         }                          \
         SET_SYNC(0);               \
         continue
 
-int Synchronizer::poll(void)
+int SyncObject::poll(void)
 {
     unsigned int gen;
     int trigevent;
@@ -49,54 +49,53 @@ int Synchronizer::poll(void)
     double lastdelay = 0.0;
     DBADDR addr;
     int have_syncpv = 0;
-    const char *syncpvname = syncpv.c_str();
+    const char *syncpvname = m_syncpv.c_str();
     int lastdelayfid = -1, lasttsfid = -1;
 
-    sobj->Init();
-    attributes = sobj->Attributes();
-    lastdelay = *sobj->m_delay;
+    attributes = Attributes();
+    lastdelay = *m_delay;
 
     if (syncpvname && syncpvname[0] && !dbNameToAddr(syncpvname, &addr))
         have_syncpv = 1;
 
-    trigevent = sobj->m_gen ? *sobj->m_event : -1;
-    gen       = sobj->m_gen ? *sobj->m_gen : 0;
-    SET_SYNC(sobj->m_gen ? 0 : 1);
+    trigevent = m_gen ? *m_event : -1;
+    gen       = m_gen ? *m_gen : 0;
+    SET_SYNC(m_gen ? 0 : 1);
     eventvalid = trigevent > 0 && trigevent < 256;
 
     while(TRUE) {
         if (dobj)
             delete dobj;
-        dobj = sobj->Acquire();
+        dobj = Acquire();
         delayfid = lastfid - (int)(lastdelay + 0.5);
-        if (sobj->CheckError(dobj)) {
+        if (CheckError(dobj)) {
             gen = -1;
             continue;
         }
 
-        if (sobj->m_gen && (gen != *sobj->m_gen || lastdelay != *sobj->m_delay)) {
+        if (m_gen && (gen != *m_gen || lastdelay != *m_delay)) {
             /* The trigger event changed or the timing did, so force a resync! */
-            trigevent = *sobj->m_event;
-            gen = *sobj->m_gen;
+            trigevent = *m_event;
+            gen = *m_gen;
             SET_SYNC(0);
 
             if (eventvalid) {
                 eventvalid = trigevent > 0 && trigevent < 256;
                 if (eventvalid)
-                    printf("%s is setting event trigger to %d.\n", sobj->Name(), trigevent);
+                    printf("%s is setting event trigger to %d.\n", Name(), trigevent);
                 else
-                    printf("%s has invalid event trigger %d!\n", sobj->Name(), trigevent);
-                sobj->DebugPrint(dobj);
+                    printf("%s has invalid event trigger %d!\n", Name(), trigevent);
+                DebugPrint(dobj);
                 fflush(stdout);
             } else {
                 eventvalid = trigevent > 0 && trigevent < 256;
                 if (eventvalid) {
-                    printf("%s is setting event trigger to %d.\n", sobj->Name(), trigevent);
-                    sobj->DebugPrint(dobj);
+                    printf("%s is setting event trigger to %d.\n", Name(), trigevent);
+                    DebugPrint(dobj);
                     fflush(stdout);
                 }
             }
-            lastdelay = *sobj->m_delay;
+            lastdelay = *m_delay;
             continue;
         }
 
@@ -106,10 +105,10 @@ int Synchronizer::poll(void)
 
             if (SYNC_DEBUG(0)) {
                 printf("%s resynchronizing at fiducial 0x%x (delay=%lg).\n",
-                       sobj->Name(), lastfid, *sobj->m_delay);
+                       Name(), lastfid, *m_delay);
             }
 
-            if (gen != *sobj->m_gen) {
+            if (gen != *m_gen) {
                 printf("Generation change, restarting!\n");
                 continue;   /* Ow... a reconfigure while reconfiguring.  Just start over. */
             }
@@ -119,7 +118,7 @@ int Synchronizer::poll(void)
             tsfid = evt_time.nsec & 0x1ffff;
             if (tsfid == 0x1ffff) { /* Sigh.  Restart if the fiducial is bad. */
                 if (SYNC_DEBUG(0)) {
-                    printf("%s has bad fiducial at time %08x:%08x.\n", sobj->Name(),
+                    printf("%s has bad fiducial at time %08x:%08x.\n", Name(),
                            evt_time.secPastEpoch, evt_time.nsec);
                     fflush(stdout);
                 }
@@ -142,14 +141,14 @@ int Synchronizer::poll(void)
                 tsfid = evt_time.nsec & 0x1ffff;
                 if (tsfid == 0x1ffff) {
                     if (SYNC_DEBUG(0)) {
-                        printf("%s resync sees a bad fiducial, restarting!\n", sobj->Name());
+                        printf("%s resync sees a bad fiducial, restarting!\n", Name());
                         fflush(stdout);
                     }
                     break;
                 }
                 if (SYNC_DEBUG(0)) {
                     printf("%s is moving back to timestamp fiducial 0x%x at index %lld.\n",
-                           sobj->Name(), tsfid, idx);
+                           Name(), tsfid, idx);
                     fflush(stdout);
                 }
             }
@@ -163,26 +162,26 @@ int Synchronizer::poll(void)
              */
             if (FID_DIFF(delayfid, tsfid) > 2) {
                 SYNC_ERROR(0, ("%s is still way off! delayfid = 0x%05x, tsfid = 0x%05x, restarting.\n",
-                               sobj->Name(), delayfid, tsfid));
+                               Name(), delayfid, tsfid));
             }
 #if 0
             while (FID_DIFF(delayfid, tsfid) > 2) {
                 unsigned long long idx2;
                 do
                     status = evrTimeGetFifo(&evt_time, trigevent, &idx2, MAX_TS_QUEUE);
-                while (idx == idx2 || gen != *sobj->m_gen);
+                while (idx == idx2 || gen != *m_gen);
                 idx = idx2;
                 tsfid = evt_time.nsec & 0x1ffff;
-                if (gen != *sobj->m_gen || tsfid == 0x1ffff)
+                if (gen != *m_gen || tsfid == 0x1ffff)
                     break;
             }
 #endif
 
-            if (gen != *sobj->m_gen || tsfid == 0x1ffff) {
+            if (gen != *m_gen || tsfid == 0x1ffff) {
                 /* This is just bad.  When in doubt, start over. */
                 if (SYNC_DEBUG(0)) {
                     printf("%s resync failed with timestamp fiducial 0x%x, restarting!\n",
-                           sobj->Name(), (evt_time.nsec & 0x1ffff));
+                           Name(), (evt_time.nsec & 0x1ffff));
                     fflush(stdout);
                 }
                 continue;
@@ -194,8 +193,8 @@ int Synchronizer::poll(void)
              */
             if (SYNC_DEBUG(0)) {
                 printf("%s resync established with index %lld at timestamp fiducial 0x%x at delayed fiducial 0x%x.\n",
-                       sobj->Name(), idx, tsfid, delayfid);
-                sobj->DebugPrint(dobj);
+                       Name(), idx, tsfid, delayfid);
+                DebugPrint(dobj);
                 fflush(stdout);
             }
             SET_SYNC(1);
@@ -206,12 +205,12 @@ int Synchronizer::poll(void)
 
         assert(in_sync == 1);
 
-        if (sobj->m_gen) {
+        if (m_gen) {
             int incr;
 
             if (attributes & SyncObject::HasCount) {
                 /* If we have a counter, use it to figure out how many timestamps to skip. */
-                incr = sobj->CountIncr(dobj);
+                incr = CountIncr(dobj);
                 if (incr < 0) {
                     SYNC_ERROR(0, ("Lost sync in CountIncr!\n"));
                 }
@@ -221,7 +220,7 @@ int Synchronizer::poll(void)
             tsfid = evt_time.nsec & 0x1ffff;
 
             if (status) {
-                SYNC_ERROR(0, ("%s has an invalid timestamp, resynching!\n", sobj->Name()));
+                SYNC_ERROR(0, ("%s has an invalid timestamp, resynching!\n", Name()));
             }
             if (tsfid == 0x1ffff) {
                 SYNC_ERROR(0, ("Invalid fiducial! (delayed fid 0x%05x)\n", delayfid));
@@ -230,7 +229,7 @@ int Synchronizer::poll(void)
             if (attributes & SyncObject::HasTime) {
                 /* If we have a timestamp, use it to calculate the expected fiducial, and then
                    search for a timestamp in the queue close to this one. */
-                int fid = sobj->Fiducial(dobj, lastdatafid);
+                int fid = Fiducial(dobj, lastdatafid);
                 if (fid < 0) {
                     SYNC_ERROR(0, ("Lost sync in Fiducial!\n"));
                 }
@@ -239,7 +238,7 @@ int Synchronizer::poll(void)
                     tsfid = evt_time.nsec & 0x1ffff;
                 }
                 if (status) {
-                    SYNC_ERROR(0, ("%s has an invalid timestamp, resynching!\n", sobj->Name()));
+                    SYNC_ERROR(0, ("%s has an invalid timestamp, resynching!\n", Name()));
                 }
                 if (tsfid == 0x1ffff) {
                     SYNC_ERROR(0, ("Invalid fiducial! (expected fid 0x%05x)\n", fid));
@@ -270,32 +269,32 @@ int Synchronizer::poll(void)
                     if (SYNC_DEBUG(0)) {
                         if (!do_print)
                             printf("%s is fully resynched with index %lld at timestamp fiducial 0x%x (0x%x - %lg = 0x%x).\n",
-                                   sobj->Name(), idx, evt_time.nsec & 0x1ffff, lastfid,
-                                   *sobj->m_delay, delayfid);
+                                   Name(), idx, evt_time.nsec & 0x1ffff, lastfid,
+                                   *m_delay, delayfid);
                         else
                             printf("%s has data at fiducial 0x%x (0x%x - %lg = 0x%x).\n",
-                                   sobj->Name(), evt_time.nsec & 0x1ffff, lastfid,
-                                   *sobj->m_delay, delayfid);
-                        sobj->DebugPrint(dobj);
+                                   Name(), evt_time.nsec & 0x1ffff, lastfid,
+                                   *m_delay, delayfid);
+                        DebugPrint(dobj);
                         fflush(stdout);
                     }
                     lastdatafid = tsfid;
                     continue;
                 } else {
                     SYNC_ERROR(0, ("%s has lost synchronization! (timestamp fid = 0x%x, delay fid = 0x%x, diff = %d)\n",
-                                   sobj->Name(), evt_time.nsec & 0x1ffff, delayfid, abs((int)tsfid - (int)delayfid)));
+                                   Name(), evt_time.nsec & 0x1ffff, delayfid, abs((int)tsfid - (int)delayfid)));
                 }
             } else {
                 if (SYNC_DEBUG_ALWAYS(2)) {
-                    printf("%s ts fid=%x, lastfid=%x\n", sobj->Name(), evt_time.nsec & 0x1ffff, lastfid);
+                    printf("%s ts fid=%x, lastfid=%x\n", Name(), evt_time.nsec & 0x1ffff, lastfid);
                     fflush(stdout);
                 }
             }
         } else {
-            epicsTimeGetEvent(&evt_time, *sobj->m_event);
+            epicsTimeGetEvent(&evt_time, *m_event);
         }
 
-        sobj->QueueData(dobj, evt_time);
+        QueueData(dobj, evt_time);
         lastdatafid = tsfid;
     }
     return 0;
