@@ -236,7 +236,7 @@ int SyncObject::poll(void)
             if (attributes & SyncObject::HasTime) {
                 /* If we have a timestamp, use it to calculate the expected fiducial, and then
                    search for a timestamp in the queue close to this one. */
-                int fiddiff = Fiducial(dobj);
+                int fiddiff = FidDiff(dobj);
                 if (fiddiff < 0) {
                     SYNC_ERROR(0, ("Lost sync in Fiducial!\n"));
                 }
