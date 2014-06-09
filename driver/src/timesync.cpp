@@ -240,7 +240,7 @@ int SyncObject::poll(void)
                 if (fiddiff < 0) {
                     SYNC_ERROR(0, ("Lost sync in Fiducial!\n"));
                 }
-                int fid = lastdatafid += fiddiff;
+                int fid = lastdatafid + fiddiff;
                 while (fid > 0x1ffe0)
                     fid -= 0x1ffe0;
                 while (!status && FID_DIFF(fid, tsfid) >= 3) {
