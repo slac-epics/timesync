@@ -68,7 +68,7 @@ int SyncObject::poll(void)
             delete dobj;
         dobj = Acquire();
         delayfid = lastfid - (int)(lastdelay + 0.5);
-        if (CheckError(dobj)) {
+        if (!dobj || CheckError(dobj)) {
             gen = -1;
             continue;
         }
