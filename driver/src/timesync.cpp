@@ -236,10 +236,13 @@ int SyncObject::poll(void)
             if (attributes & SyncObject::HasTime) {
                 /* If we have a timestamp, use it to calculate the expected fiducial, and then
                    search for a timestamp in the queue close to this one. */
-                int fid = Fiducial(dobj, lastdatafid);
-                if (fid < 0) {
+                int fiddiff = Fiducial(dobj);
+                if (fiddiff < 0) {
                     SYNC_ERROR(0, ("Lost sync in Fiducial!\n"));
                 }
+                int fid = lastdatafid += fiddiff;
+                while (fid > 0x1ffe0)
+                    fid -= 0x1ffe0;
                 while (!status && FID_DIFF(fid, tsfid) >= 3) {
                     status = evrTimeGetFifo(&evt_time, trigevent, &idx, 1);
                     tsfid = evt_time.nsec & 0x1ffff;

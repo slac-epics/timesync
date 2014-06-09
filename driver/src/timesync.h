@@ -25,7 +25,7 @@ class SyncObject
     virtual int CheckError(DataObject *dobj)   { return 0; };
     virtual const char *Name(void)             { return ""; };
     virtual int CountIncr(DataObject *dobj)    { return -1; }
-    virtual int Fiducial(DataObject *dobj, int lastdatafid) { return -1; }
+    virtual int Fiducial(DataObject *dobj)     { return -1; }
     virtual int Attributes(void)               { return CanSkip; }
     virtual void QueueData(DataObject *dobj, epicsTimeStamp &evt_time) { delete dobj; };
     virtual void DebugPrint(DataObject *dobj)  {};
