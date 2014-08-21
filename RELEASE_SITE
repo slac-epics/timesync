@@ -3,11 +3,7 @@
 # We will build some tools/scripts that allow us to
 # change this easily when relocating software.
 # ==============================================================
-ifneq (,$(wildcard /reg/g/pcds/package/epics/3.14))
 EPICS_SITE_TOP=/reg/g/pcds/package/epics/3.14
-else
-EPICS_SITE_TOP=/afs/slac/g/pcds/package/epics/3.14
-endif
 
 # EPICS module releases are kept here
 EPICS_MODULES=$(EPICS_SITE_TOP)/modules
