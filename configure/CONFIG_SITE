@@ -1,4 +1,2 @@
 # Following avoid cross compilations
-
-ALL_ARCHS:=$(CROSS_COMPILER_TARGET_ARCHS)
-CROSS_COMPILER_TARGET_ARCHS = $(filter-out vxworks% vxWorks% RTEMS%,$(ALL_ARCHS))
+# None!!
