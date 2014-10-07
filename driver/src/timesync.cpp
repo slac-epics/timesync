@@ -301,7 +301,7 @@ int SyncObject::poll(void)
                 }
             }
         } else {
-            epicsTimeGetEvent(&evt_time, 140);
+            epicsTimeGetEvent(&evt_time, 0);
         }
 
         QueueData(dobj, evt_time);
