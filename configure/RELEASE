@@ -29,4 +29,5 @@ EVENT_MODULE_VERSION=R4.0.0-2.3.0
 EVENT=$(EPICS_MODULES)/event/$(EVENT_MODULE_VERSION)
 
 #MY_MODULES=/reg/neh/home1/mcbrowne/trunk12/modules
-#EVENT=$(MY_MODULES)/event/current
+MY_MODULES=/reg/neh/home/bhill/wa2/trunk/pcds/epics/modules
+EVENT=$(MY_MODULES)/event/current

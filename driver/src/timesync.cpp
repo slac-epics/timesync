@@ -67,7 +67,7 @@ int SyncObject::poll(void)
         if (dobj)
             delete dobj;
         dobj = Acquire();
-        delayfid = evrTimeGetFiducial() - (int)(lastdelay + 0.5);
+        delayfid = evrGetLastFiducial() - (int)(lastdelay + 0.5);
         if (!dobj || CheckError(dobj)) {
             gen = -1;
             continue;
@@ -105,7 +105,7 @@ int SyncObject::poll(void)
 
             if (SYNC_DEBUG(0)) {
                 printf("%s resynchronizing at fiducial 0x%x (delay=%lg).\n",
-                       Name(), evrTimeGetFiducial(), *m_delay);
+                       Name(), evrGetLastFiducial(), *m_delay);
             }
 
             if (gen != *m_gen) {
@@ -126,7 +126,7 @@ int SyncObject::poll(void)
             }
 
             if (SYNC_DEBUG(1)) {
-                printf("Got data: evrTimeGetFiducial()=%x delayfid=%x tsfid=%x\n", lastfid, delayfid, tsfid);
+                printf("Got data: lastfid=%x delayfid=%x tsfid=%x\n", evrGetLastFiducial(), delayfid, tsfid);
                 fflush(stdout);
             }
 
@@ -279,11 +279,11 @@ int SyncObject::poll(void)
                     if (SYNC_DEBUG(0)) {
                         if (!do_print)
                             printf("%s is fully resynched with index %lld at timestamp fiducial 0x%x (0x%x - %lg = 0x%x).\n",
-                                   Name(), idx, evt_time.nsec & 0x1ffff, evrTimeGetFiducial(),
+                                   Name(), idx, evt_time.nsec & 0x1ffff, evrGetLastFiducial(),
                                    *m_delay, delayfid);
                         else
                             printf("%s has data at fiducial 0x%x (0x%x - %lg = 0x%x).\n",
-                                   Name(), evt_time.nsec & 0x1ffff, evrTimeGetFiducial(),
+                                   Name(), evt_time.nsec & 0x1ffff, evrGetLastFiducial(),
                                    *m_delay, delayfid);
                         DebugPrint(dobj);
                         fflush(stdout);
@@ -296,7 +296,7 @@ int SyncObject::poll(void)
                 }
             } else {
                 if (SYNC_DEBUG_ALWAYS(2)) {
-                    printf("%s ts fid=%x, evrTimeGetFiducial()=%x\n", Name(), evt_time.nsec & 0x1ffff, lastfid);
+                    printf("%s ts fid=%x, lastfid=%x\n", Name(), evt_time.nsec & 0x1ffff, evrGetLastFiducial() );
                     fflush(stdout);
                 }
             }
