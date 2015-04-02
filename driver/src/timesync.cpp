@@ -220,11 +220,17 @@ int SyncObject::poll(void)
             tsfid = evt_time.nsec & 0x1ffff;
 
             if (status || tsfid == 0x1ffff) {
-                /* Sigh.  Maybe we're just early?  Wait a *little*... */
-                struct timespec req = {0, 1000000}; /* 1 ms */
-                nanosleep(&req, NULL);
-                status = evrTimeGetFifo(&evt_time, trigevent, &idx, 0);
-                tsfid = evt_time.nsec & 0x1ffff;
+                unsigned long long now;
+                evrTimeGetFifo(&evt_time, trigevent, &now, MAX_TS_QUEUE); /* Where are we? */
+                if (now + 1 == idx) {
+                    /* OK, we seem to be a tad early?!?  Just wait for it! */
+                    while (status || tsfid == 0x1ffff) {
+                        struct timespec req = {0, 1000000}; /* 1 ms */
+                        nanosleep(&req, NULL);
+                        status = evrTimeGetFifo(&evt_time, trigevent, &idx, 0);
+                        tsfid = evt_time.nsec & 0x1ffff;
+                    }
+                }
             }
             if (status) {
                 SYNC_ERROR(0, ("%s has an invalid timestamp, resynching!\n", Name()));
