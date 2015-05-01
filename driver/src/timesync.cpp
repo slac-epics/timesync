@@ -164,18 +164,6 @@ int SyncObject::poll(void)
                 SYNC_ERROR(0, ("%s is still way off! delayfid = 0x%05x, tsfid = 0x%05x, restarting.\n",
                                Name(), delayfid, tsfid));
             }
-#if 0
-            while (FID_DIFF(delayfid, tsfid) > 2) {
-                unsigned long long idx2;
-                do
-                    status = evrTimeGetFifo(&evt_time, trigevent, &idx2, MAX_TS_QUEUE);
-                while (idx == idx2 || gen != *m_gen);
-                idx = idx2;
-                tsfid = evt_time.nsec & 0x1ffff;
-                if (gen != *m_gen || tsfid == 0x1ffff)
-                    break;
-            }
-#endif
 
             if (gen != *m_gen || tsfid == 0x1ffff) {
                 /* This is just bad.  When in doubt, start over. */
@@ -224,12 +212,13 @@ int SyncObject::poll(void)
                 evrTimeGetFifo(&evt_time, trigevent, &now, MAX_TS_QUEUE); /* Where are we? */
                 if (now + 1 == idx) {
                     /* OK, we seem to be a tad early?!?  Just wait for it! */
-                    while (status || tsfid == 0x1ffff) {
+                    do {
                         struct timespec req = {0, 1000000}; /* 1 ms */
                         nanosleep(&req, NULL);
-                        status = evrTimeGetFifo(&evt_time, trigevent, &idx, 0);
-                        tsfid = evt_time.nsec & 0x1ffff;
-                    }
+                        evrTimeGetFifo(&evt_time, trigevent, &now, MAX_TS_QUEUE);
+                    } while (now + 1 == idx);
+                    status = evrTimeGetFifo(&evt_time, trigevent, &idx, 0);
+                    tsfid = evt_time.nsec & 0x1ffff;
                 }
             }
             if (status) {
@@ -254,7 +243,8 @@ int SyncObject::poll(void)
                     tsfid = evt_time.nsec & 0x1ffff;
                 }
                 if (status) {
-                    SYNC_ERROR(0, ("%s has an invalid timestamp, resynching!\n", Name()));
+                    SYNC_ERROR(0, ("%s has an invalid timestamp, resynching (lastdata=0x%05x, fd=%d\n)!\n",
+                                   Name(), lastdatafid, fiddiff));
                 }
                 if (tsfid == 0x1ffff) {
                     SYNC_ERROR(0, ("Invalid fiducial! (expected fid 0x%05x)\n", fid));
