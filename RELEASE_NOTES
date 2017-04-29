@@ -1,0 +1,24 @@
+#
+# RELEASE_NOTES
+#
+R1.1.9	2017-04-28	Bruce Hill
+	Moved to git and pdated for git workflow
+	Updated to event2 R4.2.0
+	(Note: If RTEMS still needed, we'll need to migrate
+	the pcds svn event module to git and create a pcds release)
+
+R1.1.8	2015-05-01	Michael C. Browne
+	Fix timesync hang that effects the gas detector.
+
+R1.1.7	2015-04-02	Michael C. Browne
+	Minor fix to waiting code.
+
+R1.1.6	2014-12-17	Scott A. Stubbs
+	Updated to event R4.0.0-2.8.0
+	Changed evrTimeGetFiducial() calls to what they should have been, evrGetLastFiducial()
+	Replaced direct references to lastfid w/ calls to new interface function evrTimeGetFiducial().
+
+R1.1.5	2014-10-07	Michael C. Browne
+	Add RTEMS. This is pure C++.  No reason to leave out RTEMS!
+	If we aren't triggering, why would we event think we knew when 140 was?  Just get the current time.
+
