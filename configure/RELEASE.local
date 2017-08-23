@@ -14,7 +14,7 @@
 # ===============================================================
 # Define the version(s) of any other needed modules 
 # ===============================================================
-EVENT2_MODULE_VERSION = R4.2.0
+EVENT2_MODULE_VERSION = R4.2.4
 
 # ==========================================================
 # External Support module path definitions
