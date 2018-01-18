@@ -14,7 +14,7 @@
 # ===============================================================
 # Define the version(s) of any other needed modules 
 # ===============================================================
-EVENT2_MODULE_VERSION = R4.2.4
+TIMING_API_MODULE_VERSION	= R0.6
 
 # ==========================================================
 # External Support module path definitions
@@ -29,7 +29,7 @@ EVENT2_MODULE_VERSION = R4.2.4
 #
 # If your build fails, look for these paths in your build output
 # ==========================================================
-EVENT2=$(EPICS_MODULES)/event2/$(EVENT2_MODULE_VERSION)
+TIMING_API	        = $(EPICS_MODULES)/timingApi/$(TIMING_API_MODULE_VERSION)
 
 # Set EPICS_BASE last so it appears last in the DB, DBD, INCLUDE, and LIB search paths
 EPICS_BASE = $(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)

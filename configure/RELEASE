@@ -12,8 +12,8 @@ EPICS_BASE ?= Unspecified
 ifeq ($(wildcard $(EPICS_BASE)/include),)
 $(error Invalid EPICS_BASE: $(EPICS_BASE))
 endif
-EVENT2 ?= Unspecified
-ifeq ($(wildcard $(EVENT2)/include),)
-$(error Invalid EVENT2: $(EVENT2))
+TIMING_API ?= Unspecified
+ifeq ($(wildcard $(TIMING_API)/include),)
+$(error Invalid TIMING_API: $(TIMING_API))
 endif
 
