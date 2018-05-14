@@ -355,7 +355,7 @@ int SyncObject::poll(void)
                     continue;
                 } else {
                     SYNC_ERROR(0, ("%s has lost synchronization! (timestamp fid = 0x%lx, delay fid = 0x%lx, diff = %d)\n",
-                                   Name(), tsfid, delayfid, abs(tsfid - delayfid)));
+                                   Name(), tsfid, delayfid, abs((int)(tsfid - delayfid))));
                 }
             } else {
                 if (SYNC_DEBUG_ALWAYS(2)) {
