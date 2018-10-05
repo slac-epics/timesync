@@ -1,6 +1,12 @@
 #
 # RELEASE_NOTES
 #
+R2.0.1	2018-10-04 Bruce Hill
+	Fix printf formats in timesync.cpp to use PRIu64 and its variants to avoid compiler warnings for different target arches.
+
+R2.0.0	2018-01-18 Michael Browne
+	Add LCLS-II/timingAPI compatibility.
+
 R1.1.9	2017-04-28	Bruce Hill
 	Moved to git and pdated for git workflow
 	Updated to event2 R4.2.0
