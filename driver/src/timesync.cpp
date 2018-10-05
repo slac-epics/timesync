@@ -1,4 +1,6 @@
 #include <iocsh.h>
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 #include <callback.h>
 #include <dbScan.h>
 #include <dbAccess.h>
@@ -167,7 +169,7 @@ int SyncObject::poll(void)
                 continue;
 
             if (SYNC_DEBUG(0)) {
-                printf("%s resynchronizing at fiducial 0x%lx (delay=%lg).\n",
+                printf("%s resynchronizing at fiducial 0x%"PRIx64" (delay=%lg).\n",
                        Name(), timingGetLastFiducial(), *m_delay);
             }
 
@@ -189,7 +191,7 @@ int SyncObject::poll(void)
             }
 
             if (SYNC_DEBUG(1)) {
-                printf("Got data: lastfid=%lx delayfid=%lx tsfid=%lx\n", timingGetLastFiducial(), delayfid, tsfid);
+                printf("Got data: lastfid=%"PRIx64" delayfid=%"PRIx64" tsfid=%"PRIx64"\n", timingGetLastFiducial(), delayfid, tsfid);
                 fflush(stdout);
             }
 
@@ -210,7 +212,7 @@ int SyncObject::poll(void)
                     break;
                 }
                 if (SYNC_DEBUG(0)) {
-                    printf("%s is moving back to timestamp fiducial 0x%lx at index %lu.\n",
+                    printf("%s is moving back to timestamp fiducial 0x%"PRIx64" at index %"PRIu64".\n",
                            Name(), tsfid, idx);
                     fflush(stdout);
                 }
@@ -224,14 +226,14 @@ int SyncObject::poll(void)
              * timestamp yet.  Wait until we receive it!
              */
             if (LCLS2_FID_DIFF(delayfid, tsfid) > sync_far) {
-                SYNC_ERROR(0, ("%s is still way off! delayfid = 0x%lx, tsfid = 0x%lx, restarting.\n",
+                SYNC_ERROR(0, ("%s is still way off! delayfid = 0x%"PRIx64", tsfid = 0x%"PRIx64", restarting.\n",
                                Name(), delayfid, tsfid));
             }
 
             if (gen != *m_gen || tsfid == TIMING_PULSEID_INVALID) {
                 /* This is just bad.  When in doubt, start over. */
                 if (SYNC_DEBUG(0)) {
-                    printf("%s resync failed with timestamp fiducial 0x%lx, restarting!\n",
+                    printf("%s resync failed with timestamp fiducial 0x%"PRIx64", restarting!\n",
                            Name(), tsfid);
                     fflush(stdout);
                 }
@@ -243,7 +245,7 @@ int SyncObject::poll(void)
              * *past* our real fiducial?  (Unlikely, I know.)
              */
             if (SYNC_DEBUG(0)) {
-                printf("%s resync established with index %lu at timestamp fiducial 0x%lx at delayed fiducial 0x%lx.\n",
+                printf("%s resync established with index %"PRIu64" at timestamp fiducial 0x%"PRIx64" at delayed fiducial 0x%"PRIx64".\n",
                        Name(), idx, tsfid, delayfid);
                 DebugPrint(dobj);
                 fflush(stdout);
@@ -290,7 +292,7 @@ int SyncObject::poll(void)
                 SYNC_ERROR(0, ("%s has an invalid timestamp, resynching!\n", Name()));
             }
             if (tsfid == TIMING_PULSEID_INVALID) {
-                SYNC_ERROR(0, ("Invalid fiducial! (delayed fid 0x%lx)\n", delayfid));
+                SYNC_ERROR(0, ("Invalid fiducial! (delayed fid 0x%"PRIx64")\n", delayfid));
             }
 
             if (attributes & SyncObject::HasTime) {
@@ -310,15 +312,15 @@ int SyncObject::poll(void)
                     tsfid = evt_info.fifo_fid;
                 }
                 if (status) {
-                    SYNC_ERROR(0, ("%s has an invalid timestamp, resynching (lastdata=0x%lx, fd=%d\n)!\n",
+                    SYNC_ERROR(0, ("%s has an invalid timestamp, resynching (lastdata=0x%"PRIx64", fd=%d\n)!\n",
                                    Name(), lastdatafid, fiddiff));
                 }
                 if (tsfid == TIMING_PULSEID_INVALID) {
-                    SYNC_ERROR(0, ("Invalid fiducial! (expected fid 0x%lx)\n", fid));
+                    SYNC_ERROR(0, ("Invalid fiducial! (expected fid 0x%"PRIx64")\n", fid));
                 }
                 /* We're keeping it tight here for the initial sync! */
                 if (abs(LCLS2_FID_DIFF(fid, tsfid)) >= sync_far) {
-                    SYNC_ERROR(0, ("Lost sync! (timestamp fid 0x%lx, expected fid 0x%lx)\n", tsfid, fid));
+                    SYNC_ERROR(0, ("Lost sync! (timestamp fid 0x%"PRIx64", expected fid 0x%"PRIx64")\n", tsfid, fid));
                 }
             }
 
@@ -327,7 +329,7 @@ int SyncObject::poll(void)
                  * If we can skip data, we have to give up if we are delayed for any reason!
                  */
                 if (LCLS2_FID_DIFF(delayfid, tsfid) >= sync_vfar) {
-                    SYNC_ERROR(0, ("Lost sync! (timestamp fid 0x%lx, delayed fid 0x%lx, last tsfid = 0x%lx, last delayfid = 0x%lx)\n", tsfid, delayfid, lasttsfid, lastdelayfid));
+                    SYNC_ERROR(0, ("Lost sync! (timestamp fid 0x%"PRIx64", delayed fid 0x%"PRIx64", last tsfid = 0x%"PRIx64", last delayfid = 0x%"PRIx64")\n", tsfid, delayfid, lasttsfid, lastdelayfid));
                 }
             }
             lasttsfid = tsfid;
@@ -341,11 +343,11 @@ int SyncObject::poll(void)
                     do_print--;
                     if (SYNC_DEBUG(0)) {
                         if (!do_print)
-                            printf("%s is fully resynched with index %lu at timestamp fiducial 0x%lx (0x%lx - %lg = 0x%lx).\n",
+                            printf("%s is fully resynched with index %"PRIu64" at timestamp fiducial 0x%"PRIx64" (0x%"PRIx64" - %lg = 0x%"PRIx64").\n",
                                    Name(), idx, tsfid, timingGetLastFiducial(),
                                    *m_delay, delayfid);
                         else
-                            printf("%s has data at fiducial 0x%lx (0x%lx - %lg = 0x%lx).\n",
+                            printf("%s has data at fiducial 0x%"PRIx64" (0x%"PRIx64" - %lg = 0x%"PRIx64").\n",
                                    Name(), tsfid, timingGetLastFiducial(),
                                    *m_delay, delayfid);
                         DebugPrint(dobj);
@@ -354,12 +356,12 @@ int SyncObject::poll(void)
                     lastdatafid = tsfid;
                     continue;
                 } else {
-                    SYNC_ERROR(0, ("%s has lost synchronization! (timestamp fid = 0x%lx, delay fid = 0x%lx, diff = %d)\n",
-                                   Name(), tsfid, delayfid, abs(tsfid - delayfid)));
+                    SYNC_ERROR(0, ("%s has lost synchronization! (timestamp fid = 0x%"PRIx64", delay fid = 0x%"PRIx64", diff = %d)\n",
+                                   Name(), tsfid, delayfid, abs((int)(tsfid - delayfid))));
                 }
             } else {
                 if (SYNC_DEBUG_ALWAYS(2)) {
-                    printf("%s ts fid=%lx, lastfid=%lx\n", Name(), tsfid, timingGetLastFiducial() );
+                    printf("%s ts fid=%"PRIx64", lastfid=%"PRIx64"\n", Name(), tsfid, timingGetLastFiducial() );
                     fflush(stdout);
                 }
             }
