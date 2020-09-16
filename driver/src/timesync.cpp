@@ -133,6 +133,8 @@ int SyncObject::poll(void)
         if ((m_gen && (gen != *m_gen || lastdelay != *m_delay)) || (mode != *m_mode)) {
             /* Either the timing info changed or the delay calculation changed
                or the timing mode changed, so force a resync! */
+            printf("gen = %d, *m_gen = %d, lastdelay = %lf, *m_delay = %lf, mode = %d, *m_mode = %d\n",
+                   gen, *m_gen, lastdelay, *m_delay, mode, *m_mode);
             trigevent = *m_event;
             gen = *m_gen;
             printf("Timesync Gen = %d\n", gen);
@@ -301,16 +303,16 @@ int SyncObject::poll(void)
                     SYNC_ERROR(0, ("Lost sync in Fiducial!\n"));
                 }
                 TimingPulseId fid = lastdatafid + fiddiff;
-                if (tsfid < 0x1ffe0) { /* LCLS1 - We have to rollaround! */
-                    while (fid > 0x1ffe0)
-                        fid -= 0x1ffe0;
+                if (tsfid < LCLS1_FID_MAX) { /* LCLS1 - Rollaround! */
+                    while (fid >= LCLS1_FID_MAX)
+                        fid -= LCLS1_FID_MAX;
                 }
                 while (!status && LCLS2_FID_DIFF(fid, tsfid) >= sync_vfar) {
                     status = timingFifoRead(trigevent, 1, &idx, &evt_info);
                     tsfid = evt_info.fifo_fid;
                 }
                 if (status) {
-                    SYNC_ERROR(0, ("%s has an invalid timestamp, resynching (lastdata=0x%lx, fd=%d\n)!\n",
+                    SYNC_ERROR(0, ("%s has an invalid timestamp, resynching (lastdata=0x%lx, fd=%d)!\n",
                                    Name(), lastdatafid, fiddiff));
                 }
                 if (tsfid == TIMING_PULSEID_INVALID) {
