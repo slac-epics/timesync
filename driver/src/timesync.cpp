@@ -133,11 +133,16 @@ int SyncObject::poll(void)
     if (syncpvname && syncpvname[0] && !dbNameToAddr(syncpvname, &addr))
         have_syncpv = 1;
 
-    trigevent = m_gen ? *m_event : -1;
-    gen       = m_gen ? *m_gen : 0;
+    // Use event code to determine if timing is configured, do not use the EVR 
+    // generation counter (m_gen)
+    trigevent = (m_event && *m_event > 0 && *m_event < 256) ? *m_event : -1;
+    gen = m_gen ? *m_gen : 0;
     printTime(stdout);
     printf("Initial Gen = %d\n", gen);
-    SET_SYNC(m_gen ? 0 : 1);
+
+    // Skip sync only if there is no valid code
+    SET_SYNC(trigevent > 0 ? 0 : 1);
+
     eventvalid = trigevent > 0 && trigevent < 256;
 
     while(TRUE) {
@@ -157,14 +162,13 @@ int SyncObject::poll(void)
             continue;
         }
 
-        if ((m_gen && (gen != *m_gen || lastdelay != *m_delay)) || (mode != *m_mode)) {
-            /* Either the timing info changed or the delay calculation changed
-               or the timing mode changed, so force a resync! */
+        if ((m_gen && gen != *m_gen) || (lastdelay != *m_delay) || (mode != *m_mode)) {
+            /* If the timing info changed or the delay calculation changed
+               or the timing mode changed, force a resync! */
 	    printTime(stdout);
-            printf("gen = %d, *m_gen = %d, lastdelay = %lf, *m_delay = %lf, mode = %d, *m_mode = %d\n",
-                   gen, *m_gen, lastdelay, *m_delay, mode, *m_mode);
+            printf("gen = %d, *m_gen = %d, lastdelay = %lf, *m_delay = %lf, mode = %d, *m_mode  = %d\n", gen, (m_gen ? *m_gen : -1), lastdelay, *m_delay, mode, *m_mode);
             trigevent = *m_event;
-            gen = *m_gen;
+            gen = m_gen ? *m_gen : 0;  // protect against null pointer
 	    printTime(stdout);
             printf("Timesync Gen = %d\n", gen);
             SET_SYNC(0);
@@ -202,13 +206,13 @@ int SyncObject::poll(void)
 
             if (SYNC_DEBUG(0)) {
                 printTime(stdout);
-		printf("%s resynchronizing at fiducial 0x%lu (delay=%lg).\n",
+		        printf("%s resynchronizing at fiducial 0x%lu (delay=%lg).\n",
                        Name(), timingGetLastFiducial(), *m_delay);
             }
 
-            if (gen != *m_gen) {
+            if (m_gen && gen != *m_gen) {
                 printTime(stdout);
-		printf("Generation change, restarting!\n");
+		        printf("Generation change, restarting!\n");
                 continue;   /* Ow... a reconfigure while reconfiguring.  Just start over. */
             }
 
@@ -268,11 +272,11 @@ int SyncObject::poll(void)
                                Name(), delayfid, tsfid));
             }
 
-            if (gen != *m_gen || tsfid == TIMING_PULSEID_INVALID) {
+            if ((m_gen && gen != *m_gen) || tsfid == TIMING_PULSEID_INVALID) {
                 /* This is just bad.  When in doubt, start over. */
                 if (SYNC_DEBUG(0)) {
                     printTime(stdout);
-		    printf("%s resync failed with timestamp fiducial 0x%lu, restarting!\n",
+		            printf("%s resync failed with timestamp fiducial 0x%lu, restarting!\n",
                            Name(), tsfid);
                     fflush(stdout);
                 }
@@ -298,7 +302,7 @@ int SyncObject::poll(void)
 
         assert(in_sync == 1);
 
-        if (m_gen) {
+        if (eventvalid) {
             int incr;
 
             if (attributes & SyncObject::HasCount) {
