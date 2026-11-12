@@ -14,7 +14,8 @@
 # ===============================================================
 # Define the version(s) of any other needed modules 
 # ===============================================================
-TIMING_API_MODULE_VERSION	= R0.9
+TIMING_API_MODULE_VERSION   = R0.11
+DIAG_TIMER_MODULE_VERSION   = R1.9.4
 
 # ==========================================================
 # External Support module path definitions
@@ -29,7 +30,8 @@ TIMING_API_MODULE_VERSION	= R0.9
 #
 # If your build fails, look for these paths in your build output
 # ==========================================================
-TIMING_API	        = $(EPICS_MODULES)/timingApi/$(TIMING_API_MODULE_VERSION)
+TIMING_API  = $(EPICS_MODULES)/timingApi/$(TIMING_API_MODULE_VERSION)
+DIAG_TIMER  = $(EPICS_MODULES)/diagTimer/$(DIAG_TIMER_MODULE_VERSION)
 
 # Set EPICS_BASE last so it appears last in the DB, DBD, INCLUDE, and LIB search paths
 EPICS_BASE = $(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)
