@@ -231,7 +231,7 @@ int SyncObject::poll(void)
             tsfid = LCLS1_FID_GET(evt_info);
             delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
             nowfid = LCLS1_FID_LAST(evt_info, tscNow);
-            if (tsfid == TIMING_PULSEID_INVALID) { /* Sigh.  Restart if the fiducial is bad. */
+            if (status || tsfid == TIMING_PULSEID_INVALID) { /* Sigh.  Restart if the fiducial is bad. */
                 if (SYNC_DEBUG(0)) {
                     printTime(stdout);
                     printf("%s has bad fiducial at time %08x:%08x.\n", Name(),
@@ -258,7 +258,7 @@ int SyncObject::poll(void)
                 tsfid = LCLS1_FID_GET(evt_info);
                 delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
                 nowfid = LCLS1_FID_LAST(evt_info, tscNow);
-                if (tsfid == TIMING_PULSEID_INVALID) {
+                if (status || tsfid == TIMING_PULSEID_INVALID) {
                     if (SYNC_DEBUG(0)) {
                         printTime(stdout);
                         printf("%s resync sees a bad fiducial, restarting!\n", Name());
@@ -334,20 +334,14 @@ int SyncObject::poll(void)
 
             if (status || tsfid == TIMING_PULSEID_INVALID) {
                 uint64_t now;
-                timingFifoRead(trigevent, TS_INDEX_INIT, &now, &evt_info); /* Where are we? */
-                tsfid = LCLS1_FID_GET(evt_info);
-                delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
-                nowfid = LCLS1_FID_LAST(evt_info, tscNow);
-                if (now + 1 == idx) {
+                int retcode = timingFifoRead(trigevent, TS_INDEX_INIT, &now, &evt_info); /* Where are we? */
+                if (!retcode && (now + 1 == idx)) {
                     /* OK, we seem to be a tad early?!?  Just wait for it! */
                     do {
                         struct timespec req = {0, 1000000}; /* 1 ms */
                         nanosleep(&req, NULL);
-                        timingFifoRead(trigevent, TS_INDEX_INIT, &now, &evt_info);
-                        tsfid = LCLS1_FID_GET(evt_info);
-                        delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
-                        nowfid = LCLS1_FID_LAST(evt_info, tscNow);
-                    } while (now + 1 == idx);
+                        retcode = timingFifoRead(trigevent, TS_INDEX_INIT, &now, &evt_info);
+                    } while (!retcode && (now + 1 == idx));
                     status = timingFifoRead(trigevent, 0, &idx, &evt_info);
                     tsfid = LCLS1_FID_GET(evt_info);
                     delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
