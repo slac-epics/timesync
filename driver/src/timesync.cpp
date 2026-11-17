@@ -12,6 +12,7 @@
 #include "timesync.h"
 #include <stdint.h>
 #include <timingFifoApi.h>
+#include "HiResTime.h"
 
 using namespace		std;
 
@@ -48,6 +49,9 @@ int sync_cnt   = 200;
 #define LCLS1_FID_DIFF(a,b)  ((LCLS1_FID_ROLL(b, a) ? LCLS1_FID_MAX : 0) + \
                               (int)(a) - (int)(b) - (LCLS1_FID_ROLL(a, b) ? LCLS1_FID_MAX : 0))
 #define LCLS2_FID_DIFF(a,b)  ((int)(((a)<LCLS1_FID_MAX&&(b)<LCLS1_FID_MAX)?LCLS1_FID_DIFF(a,b):((a)-(b))))
+#define LCLS1_FID_GET(i)     (i.fifo_time.nsec & LCLS1_FID_MASK)
+#define LCLS1_FID_DLY(i,n,d) ((LCLS1_FID_GET(i)) + (int)(HiResTicksToSeconds((n)-(i.fifo_tsc))*360-d+0.5))
+#define LCLS1_FID_LAST(i,n)  (LCLS1_FID_DLY(i,n,0.))
 #define EVTCODE_VALID(evtcode) (evtcode > 0 && evtcode < 256) || (evtcode >= 1000 && evtcode < 1012)
 #define SYNC_DEBUG(n)        (sync_debug > (n) && sync_cnt > 0 && --sync_cnt)
 #define SYNC_DEBUG_ALWAYS(n) (sync_debug > (n))
@@ -113,7 +117,7 @@ int SyncObject::poll(void)
     int trigevent;
     int eventvalid;
     DataObject *dobj = NULL;
-    TimingPulseId delayfid, tsfid = -1, lastdatafid = -1;
+    TimingPulseId delayfid, tsfid = -1, lastdatafid = -1, nowfid = -1;
     int in_sync;
     int do_print = 0;
     uint64_t idx = 0;
@@ -126,6 +130,8 @@ int SyncObject::poll(void)
     const char *syncpvname = m_syncpv.c_str();
     TimingPulseId lastdelayfid = -1, lasttsfid = -1;
     unsigned int mode;
+
+    t_HiResTime tscNow;
 
     attributes = Attributes();
     lastdelay = *m_delay;
@@ -146,6 +152,12 @@ int SyncObject::poll(void)
         if (dobj)
             delete dobj;
         dobj = Acquire();
+        /* When using the tpr timingGetLastFiducial only returns the fiducial of the last 'beam', so
+         * it only updates every third. With the evr you would see the full 360 Hz of fiducials from this.
+         * Copying from the timestampFifo module use high res timer from diagTimer to approximate the
+         * effective fiducial that the data arrived at, so rest of the logic in here doesn't need to be
+         * redone. */
+        tscNow = GetHiResTicks();
         delayfid = timingGetLastFiducial() - (int)(lastdelay + 0.5);
         while (delayfid == lastdatafid) {
             struct timespec req = {0, 1000000}; /* 1 ms */
@@ -216,8 +228,10 @@ int SyncObject::poll(void)
 
             /* Get the current time! */
             status = timingFifoRead(trigevent, TS_INDEX_INIT, &idx, &evt_info);
-            tsfid = evt_info.fifo_time.nsec & LCLS1_FID_MASK;
-            if (tsfid == TIMING_PULSEID_INVALID) { /* Sigh.  Restart if the fiducial is bad. */
+            tsfid = LCLS1_FID_GET(evt_info);
+            delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
+            nowfid = LCLS1_FID_LAST(evt_info, tscNow);
+            if (status || tsfid == TIMING_PULSEID_INVALID) { /* Sigh.  Restart if the fiducial is bad. */
                 if (SYNC_DEBUG(0)) {
                     printTime(stdout);
                     printf("%s has bad fiducial at time %08x:%08x.\n", Name(),
@@ -241,8 +255,10 @@ int SyncObject::poll(void)
                  * Go back until we get an event before this time.
                  */
                 status = timingFifoRead(trigevent, -1, &idx, &evt_info);
-                tsfid = evt_info.fifo_time.nsec & LCLS1_FID_MASK;
-                if (tsfid == TIMING_PULSEID_INVALID) {
+                tsfid = LCLS1_FID_GET(evt_info);
+                delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
+                nowfid = LCLS1_FID_LAST(evt_info, tscNow);
+                if (status || tsfid == TIMING_PULSEID_INVALID) {
                     if (SYNC_DEBUG(0)) {
                         printTime(stdout);
                         printf("%s resync sees a bad fiducial, restarting!\n", Name());
@@ -312,22 +328,24 @@ int SyncObject::poll(void)
             } else
                 incr = 1;
             status = timingFifoRead(trigevent, incr, &idx, &evt_info);
-            tsfid = evt_info.fifo_time.nsec & LCLS1_FID_MASK;
+            tsfid = LCLS1_FID_GET(evt_info);
+            delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
+            nowfid = LCLS1_FID_LAST(evt_info, tscNow);
 
             if (status || tsfid == TIMING_PULSEID_INVALID) {
                 uint64_t now;
-                timingFifoRead(trigevent, TS_INDEX_INIT, &now, &evt_info); /* Where are we? */
-                tsfid = evt_info.fifo_time.nsec & LCLS1_FID_MASK;
-                if (now + 1 == idx) {
+                int retcode = timingFifoRead(trigevent, TS_INDEX_INIT, &now, &evt_info); /* Where are we? */
+                if (!retcode && (now + 1 == idx)) {
                     /* OK, we seem to be a tad early?!?  Just wait for it! */
                     do {
                         struct timespec req = {0, 1000000}; /* 1 ms */
                         nanosleep(&req, NULL);
-                        timingFifoRead(trigevent, TS_INDEX_INIT, &now, &evt_info);
-                        tsfid = evt_info.fifo_time.nsec & LCLS1_FID_MASK;
-                    } while (now + 1 == idx);
+                        retcode = timingFifoRead(trigevent, TS_INDEX_INIT, &now, &evt_info);
+                    } while (!retcode && (now + 1 == idx));
                     status = timingFifoRead(trigevent, 0, &idx, &evt_info);
-                    tsfid = evt_info.fifo_time.nsec & LCLS1_FID_MASK;
+                    tsfid = LCLS1_FID_GET(evt_info);
+                    delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
+                    nowfid = LCLS1_FID_LAST(evt_info, tscNow);
                 }
             }
             if (status) {
@@ -351,7 +369,9 @@ int SyncObject::poll(void)
                 }
                 while (!status && LCLS2_FID_DIFF(fid, tsfid) >= sync_vfar) {
                     status = timingFifoRead(trigevent, 1, &idx, &evt_info);
-                    tsfid = evt_info.fifo_time.nsec & LCLS1_FID_MASK;
+                    tsfid = LCLS1_FID_GET(evt_info);
+                    delayfid = LCLS1_FID_DLY(evt_info, tscNow, lastdelay);
+                    nowfid = LCLS1_FID_LAST(evt_info, tscNow);
                 }
                 if (status) {
                     SYNC_ERROR(0, ("%s has an invalid timestamp, resynching (lastdata=0x%lu, fd=%d)!\n",
@@ -387,11 +407,11 @@ int SyncObject::poll(void)
                         printTime(stdout);
                         if (!do_print)
                             printf("%s is fully resynched with index %lu at timestamp fiducial 0x%lu (0x%lu - %lg = 0x%lu).\n",
-                                   Name(), idx, tsfid, timingGetLastFiducial(),
+                                   Name(), idx, tsfid, nowfid,
                                    *m_delay, delayfid);
                         else
                             printf("%s has data at fiducial 0x%lu (0x%lu - %lg = 0x%lu).\n",
-                                   Name(), tsfid, timingGetLastFiducial(),
+                                   Name(), tsfid, nowfid,
                                    *m_delay, delayfid);
                         DebugPrint(dobj);
                         fflush(stdout);
